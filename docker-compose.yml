@@ -1,0 +1,47 @@
+networks:
+  dream-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+
+services:
+  db:
+    image: postgres:15
+    container_name: pg-db
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - dream-network
+
+  backend:
+    image: wilfred2018/dream-backend:kc-v1
+    container_name: backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - db
+    ports:
+      - "3001:3001"
+    networks:
+      - dream-network
+
+  frontend:
+    image: wilfred2018/dream-frontend:kc-v1
+    container_name: frontend
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - dream-network
