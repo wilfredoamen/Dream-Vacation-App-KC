@@ -1,4 +1,4 @@
-# Dream Vacation App – Dockerized Full-Stack Project
+# Task 1 : Dream Vacation App – Dockerized Full-Stack Project
 
 This project demonstrates how to containerize a full-stack Dream Vacation App using **Docker** and **Docker Compose**. It consists of a React frontend, a Node.js backend, and a PostgreSQL database.
 
@@ -247,7 +247,9 @@ docker-compose up -d
 
 ---------
 
-# A Full CI pipeline for your Dream Vacation App
+
+
+# Task 2 : CI/CD Pipeline Setup for  Dream Vacation App Using GitHub Actions and Docker Hub
 
 ### Step 1: Create a New Branch And a CI/CD Workflow Files
 
@@ -397,6 +399,24 @@ Follow the steps below to create a githib secret.
 
 ![imge2](./img/github-secrets.png)  
 *img2:The screenshot shows me navigating to my GitHub repository's Settings, opening Secrets and variables → Actions, and adding new repository secrets like DOCKER_USERNAME and DOCKER_TOKEN for authenticating Docker Hub in GitHub Actions.*
+
+
+### Step 4: Push The changes to Trigger Pipeline
+
+- Staging changes, committing with a message, and pushing to the origin ci-cd-pipeline branch will trigger the pipeline to automatically build the Docker image, tag it with the commit SHA, and push it to Docker Hub.
+
+
+![imge3](./img/trigger-pipieline.png)
+*img3 : The screenshot shows Staging,committing and pushing changes to the ci-cd-pipeline branch*
+
+### Step 5: CI/CD Pipeline Verification
+
+![imge4](./img/frontend-ci-build.png)
+*img4 : This screenshot confirms that the GitHub Actions frontend workflow was successfully triggered on a push to the ci-cd-pipeline branch (32a7c83) and executed the frontend.yml job (build) with a "Success" status. Docker Hub shows the image wilfred2018/dream-frontend was pushed with the exact commit SHA tag 32a7c830881c5dfda..., proving your CI/CD pipeline is working end-to-end—from GitHub to Docker Hub.*
+
+
+![imge5](./img/backend-ci-build.png)
+*img5 : This screenshot confirms that the GitHub Actions backend workflow successfully initiated on a push to the ci-cd-pipeline branch (60ccad4e7041aa5...), executed the backend.yml job (build), and completed with a "Success" status. Docker Hub shows the image wilfred2018/dream-backend was pushed with the exact commit SHA tag 60ccad4e7041aa5..., proving the CI/CD pipeline is working end-to-end—from GitHub to Docker Hub*
 
 
 
