@@ -1,9 +1,11 @@
-# Task 1 : Dream Vacation App – Dockerized Full-Stack Project
+# Dream Vacation App: From Local Setup to Dockerized Deployment and Automated CI/CD with GitHub Actions
+
+## Task 1 : Dream Vacation App – Dockerized Full-Stack Project.
 
 This project demonstrates how to containerize a full-stack Dream Vacation App using **Docker** and **Docker Compose**. It consists of a React frontend, a Node.js backend, and a PostgreSQL database.
 
 ---
-## Technologies Used
+### Technologies Used
 - **Frontend**: React
 - **Backend**: Node.js with Express
 - **Database**: PostgreSQL
@@ -249,7 +251,13 @@ docker-compose up -d
 
 
 
-# Task 2 : CI/CD Pipeline Setup for  Dream Vacation App Using GitHub Actions and Docker Hub
+
+
+
+
+---------
+
+## Task 2 : CI/CD Pipeline Setup for  Dream Vacation App Using GitHub Actions and Docker Hub
 
 ### Step 1: Create a New Branch And a CI/CD Workflow Files
 
