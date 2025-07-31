@@ -1,4 +1,4 @@
-# Dream Vacation App – Dockerized Full-Stack Project
+# Task 1 : Dream Vacation App – Dockerized Full-Stack Project
 
 This project demonstrates how to containerize a full-stack Dream Vacation App using **Docker** and **Docker Compose**. It consists of a React frontend, a Node.js backend, and a PostgreSQL database.
 
@@ -244,6 +244,185 @@ docker-compose up -d
 
 ![image15](./img/img12.png)
 *img14:Showing frontend and backend*    
+
+---------
+
+
+
+# Task 2 : CI/CD Pipeline Setup for  Dream Vacation App Using GitHub Actions and Docker Hub
+
+### Step 1: Create a New Branch And a CI/CD Workflow Files
+
+On the terminal and run:
+* Go to the root directory  Dream-Vacation-App to create a new branch.
+  
+  * Use `git checkout -b ci-cd-pipeline` to create and switch to a new branch named ci-cd-pipeline  
+
+- Create a CI/CD workflow files.
+
+   - Use `mkdir -p .github/workflows` to create directory where the workflow files will be created.
+
+   - Go to the .github/workflows directery to create the workflow files  with the following command.
+
+   ```bash
+   # Used to go inside the workflows directory
+   cd .github/workflows
+   # Create 2 new workflow file
+   touch frontend.yml backend.yml
+   ```
+  ![imge1](./img/switch-branch.png) 
+  *img1:The screenshot shows the switching to the ci-cd-pipeline branch and creating a .github/workflows directory for GitHub Actions. Inside the directory, two workflow file was created (frontend.yml and backend.yml) that will define the CI/CD pipelines for the application.*
+
+---
+### Step 2:Frontend and Backend GitHub Actions Workflow Files.
+
+- **For Frontend** :
+   
+Inside .github/workflows/frontend.yml
+   
+```bash
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - ci-cd-pipeline
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+  pull_request:
+    branches:
+      - ci-cd-pipeline
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}
+```
+The above workflow frontend file triggers on any push or pull request to the ci-cd-pipeline branch but only if changes are made in the frontend directory or the workflow file itself. It then builds the frontend Docker image using frontend/Dockerfile and pushes the resulting image to Docker Hub.
+
+- **For Backendend** :
+
+```bash
+
+name: Backend CI/CD
+
+on:
+  push:
+    branches:
+      - ci-cd-pipeline
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    branches:
+      - ci-cd-pipeline
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}
+```
+The above workflow backend file also triggers on any push or pull request to the ci-cd-pipeline branch but only if changes are made in the frontend directory or the workflow file itself. It then builds the backend Docker image using backend/Dockerfile and pushes the resulting image to Docker Hub.
+
+
+
+---
+
+### Step 3: Create GitHub Secrets
+
+Follow the steps below to create a githib secret.
+
+- Go to your GitHub repository.
+
+- Click on the Settings tab.
+
+- In the left sidebar, click Secrets and variables → Actions.
+
+- Click the green “New repository secret” button.
+
+- Add the following secrets (one at a time):
+
+  - DOCKER_USERNAME → your Docker Hub username
+
+  - DOCKER_TOKEN → your Docker Hub access token 
+
+![imge2](./img/github-secrets.png)  
+*img2:The screenshot shows me navigating to my GitHub repository's Settings, opening Secrets and variables → Actions, and adding new repository secrets like DOCKER_USERNAME and DOCKER_TOKEN for authenticating Docker Hub in GitHub Actions.*
+
+
+### Step 4: Push The changes to Trigger Pipeline
+
+- Staging changes, committing with a message, and pushing to the origin ci-cd-pipeline branch will trigger the pipeline to automatically build the Docker image, tag it with the commit SHA, and push it to Docker Hub.
+
+
+![imge3](./img/trigger-pipieline.png)
+*img3 : The screenshot shows Staging,committing and pushing changes to the ci-cd-pipeline branch*
+
+### Step 5: CI/CD Pipeline Verification
+
+![imge4](./img/frontend-ci-build.png)
+*img4 : This screenshot confirms that the GitHub Actions frontend workflow was successfully triggered on a push to the ci-cd-pipeline branch (32a7c83) and executed the frontend.yml job (build) with a "Success" status. Docker Hub shows the image wilfred2018/dream-frontend was pushed with the exact commit SHA tag 32a7c830881c5dfda..., proving your CI/CD pipeline is working end-to-end—from GitHub to Docker Hub.*
+
+
+![imge5](./img/backend-ci-build.png)
+*img5 : This screenshot confirms that the GitHub Actions backend workflow successfully initiated on a push to the ci-cd-pipeline branch (60ccad4e7041aa5...), executed the backend.yml job (build), and completed with a "Success" status. Docker Hub shows the image wilfred2018/dream-backend was pushed with the exact commit SHA tag 60ccad4e7041aa5..., proving the CI/CD pipeline is working end-to-end—from GitHub to Docker Hub*
+
+
+
+
+
+
 
 
 
