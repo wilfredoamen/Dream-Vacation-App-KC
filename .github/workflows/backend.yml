@@ -60,6 +60,12 @@ jobs:
           echo "docker-compose.base.yml contents:"
           cat docker-compose.base.yml || echo "MISSING"
 
+      # Hard fail if files missing/empty (solution step)
+      - name: Fail if required files are missing or empty
+        run: |
+          [ -s docker-compose.base.yml ] && [ -s backend/.env ] && [ -s frontend/.env ] || \
+          (echo "ERROR: One or more required files are missing or empty. Aborting." && exit 1)
+
       # Upload base compose + env files (idempotent)
       - name: Upload compose + env files to EC2
         uses: appleboy/scp-action@v0.1.7
