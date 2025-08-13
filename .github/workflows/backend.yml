@@ -1,14 +1,13 @@
-# Backend CI/CD Workflow
 name: Backend CI/CD
 
 on:
   push:
-    branches: [ Ec2-deploy ]
+    branches: [Ec2-deploy]
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
   pull_request:
-    branches: [ Ec2-deploy ]
+    branches: [Ec2-deploy]
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
@@ -18,27 +17,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        name: Checkout repo
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
+        name: Set up Docker Buildx
 
-      - name: Docker Hub login
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
+        name: Docker Hub login
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - name: Build & push backend image
-        uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
+        name: Build & push backend image
         with:
           context: ./backend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}
 
-      - name: Upload docker-compose.base.yml to EC2
-        uses: appleboy/scp-action@v0.1.7
+      - uses: appleboy/scp-action@v0.1.7
+        name: Upload docker-compose.base.yml to EC2
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -46,30 +45,31 @@ jobs:
           source: docker-compose.base.yml
           target: /home/${{ secrets.EC2_USER }}/app
 
-      - name: Deploy backend to EC2
-        uses: appleboy/ssh-action@v1.0.3
+      - uses: appleboy/ssh-action@v1.0.3
+        name: Deploy backend to EC2
         env:
           GITHUB_SHA: ${{ github.sha }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
             set -e
-            mkdir -p /home/${{ secrets.EC2_USER }}/app/backend
-            mkdir -p /home/${{ secrets.EC2_USER }}/app/frontend
+            mkdir -p /home/${{ secrets.EC2_USER }}/app/{backend,frontend}
 
-            # Create env files from GitHub Secrets
+            # Create or override .env files from GitHub Secrets
             cat > /home/${{ secrets.EC2_USER }}/app/backend/.env <<'EOF'
-            ${{ secrets.BACKEND_ENV }}
+            ${BACKEND_ENV}
             EOF
 
             cat > /home/${{ secrets.EC2_USER }}/app/frontend/.env <<'EOF'
-            ${{ secrets.FRONTEND_ENV }}
+            ${FRONTEND_ENV}
             EOF
 
-            # Install docker + compose if missing
+            # Install Docker and Compose if missing
             if ! command -v docker >/dev/null 2>&1; then
               sudo apt-get update -y
               sudo apt-get install -y docker.io
@@ -84,24 +84,13 @@ jobs:
 
             cd /home/${{ secrets.EC2_USER }}/app
 
-            # Export GITHUB_SHA for use in this script
-            export GITHUB_SHA="${GITHUB_SHA:-${{ github.sha }}}"
-            export DOCKER_USERNAME="${DOCKER_USERNAME:-${{ secrets.DOCKER_USERNAME }}}"
-
-            if [ ! -f docker-compose.yml ]; then
-              cp docker-compose.base.yml docker-compose.yml
-              sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${DOCKER_USERNAME}|g" docker-compose.yml
-              sed -i "s|REPLACE_BACKEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
-              sed -i "s|REPLACE_FRONTEND_TAG|bootstrap|g" docker-compose.yml
-              echo "docker-compose.yml after sed replacements:"
-              cat docker-compose.yml
-              docker-compose up -d db backend
-              exit 0
-            fi
-
-            # Update backend tag for redeploy
-            sed -i "s|${DOCKER_USERNAME}/dream-backend:[^[:space:]]*|${DOCKER_USERNAME}/dream-backend:${GITHUB_SHA}|g" docker-compose.yml
-            echo "docker-compose.yml after backend image update:"
+            # Always recreate docker-compose.yml from base
+            cp docker-compose.base.yml docker-compose.yml
+            sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${DOCKER_USERNAME}|g" docker-compose.yml
+            sed -i "s|REPLACE_BACKEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
+            sed -i "s|REPLACE_FRONTEND_TAG|bootstrap|g" docker-compose.yml
+            echo "docker-compose.yml after replacements:"
             cat docker-compose.yml
-            docker-compose pull backend
-            docker-compose up -d backend
+
+            docker-compose pull db backend frontend || true
+            docker-compose up -d db backend frontend
