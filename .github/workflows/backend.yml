@@ -49,6 +49,17 @@ jobs:
           mkdir -p frontend
           printf "%s" "${{ secrets.FRONTEND_ENV }}" > frontend/.env
 
+      # Ensure files exist and are not empty
+      - name: Check required files before SCP
+        run: |
+          ls -lh docker-compose.base.yml backend/.env frontend/.env
+          echo "backend/.env contents:"
+          cat backend/.env || echo "MISSING"
+          echo "frontend/.env contents:"
+          cat frontend/.env || echo "MISSING"
+          echo "docker-compose.base.yml contents:"
+          cat docker-compose.base.yml || echo "MISSING"
+
       # Upload base compose + env files (idempotent)
       - name: Upload compose + env files to EC2
         uses: appleboy/scp-action@v0.1.7
