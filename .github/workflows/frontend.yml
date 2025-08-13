@@ -1,4 +1,3 @@
-# frontend.yml
 name: Frontend CI/CD
 
 on:
@@ -97,8 +96,13 @@ jobs:
             fi
 
             # Redeployment: update only frontend image tag
-            sed -i "s|${DOCKER_USERNAME}/dream-frontend:[^[:space:]]*|${DOCKER_USERNAME}/dream-frontend:${GITHUB_SHA}|g" docker-compose.yml
-            echo "docker-compose.yml after frontend image update:"
-            cat docker-compose.yml
-            docker-compose pull frontend
-            docker-compose up -d frontend
+            if [ -f docker-compose.yml ]; then
+              sed -i "s|${DOCKER_USERNAME}/dream-frontend:[^[:space:]]*|${DOCKER_USERNAME}/dream-frontend:${GITHUB_SHA}|g" docker-compose.yml
+              echo "docker-compose.yml after frontend image update:"
+              cat docker-compose.yml
+              docker-compose pull frontend
+              docker-compose up -d frontend
+            else
+              echo "ERROR: docker-compose.yml not found for redeployment."
+              exit 1
+            fi
