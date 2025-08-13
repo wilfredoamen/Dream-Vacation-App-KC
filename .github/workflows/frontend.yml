@@ -6,13 +6,11 @@ on:
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
-      - 'docker-compose.base.yml'
   pull_request:
     branches: [ Ec2-deploy ]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
-      - 'docker-compose.base.yml'
 
 jobs:
   build-and-deploy:
@@ -31,49 +29,23 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - name: Build & push frontend image (commit tag only)
+      - name: Build & push frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}
 
-      # Create .env files from secrets (not committed)
-      - name: Create backend .env
-        run: |
-          mkdir -p backend
-          printf "%s" "${{ secrets.BACKEND_ENV }}" > backend/.env
-
-      - name: Create frontend .env
-        run: |
-          mkdir -p frontend
-          printf "%s" "${{ secrets.FRONTEND_ENV }}" > frontend/.env
-
-      # Debug: Check file existence and contents
-      - name: Debug file existence
-        run: |
-          ls -lh docker-compose.base.yml backend/.env frontend/.env
-          echo "backend/.env:"
-          cat backend/.env || echo "Missing"
-          echo "frontend/.env:"
-          cat frontend/.env || echo "Missing"
-
-      # Upload base compose + env files (idempotent)
-      - name: Upload compose + env files to EC2
+      - name: Upload docker-compose.base.yml to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
-          source: |
-            docker-compose.base.yml
-            backend/.env
-            frontend/.env
+          source: docker-compose.base.yml
           target: /home/${{ secrets.EC2_USER }}/app
-          strip_components: 0
 
-      # Bootstrap or update only frontend on EC2
-      - name: Bootstrap or update on EC2
+      - name: Deploy frontend to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -81,8 +53,19 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             set -e
+            mkdir -p /home/${{ secrets.EC2_USER }}/app/backend
+            mkdir -p /home/${{ secrets.EC2_USER }}/app/frontend
 
-            # Ensure Docker & Compose
+            # Create env files from GitHub Secrets
+            cat > /home/${{ secrets.EC2_USER }}/app/backend/.env <<'EOF'
+            ${{ secrets.BACKEND_ENV }}
+            EOF
+
+            cat > /home/${{ secrets.EC2_USER }}/app/frontend/.env <<'EOF'
+            ${{ secrets.FRONTEND_ENV }}
+            EOF
+
+            # Install docker + compose if missing
             if ! command -v docker >/dev/null 2>&1; then
               sudo apt-get update -y
               sudo apt-get install -y docker.io
@@ -96,25 +79,16 @@ jobs:
             fi
 
             cd /home/${{ secrets.EC2_USER }}/app
-            mkdir -p backend frontend
 
-            # Place env files where compose expects them
-            mv -f backend/.env backend/.env || true
-            mv -f frontend/.env frontend/.env || true
-
-            # First-time? Build docker-compose.yml from base with placeholders replaced
             if [ ! -f docker-compose.yml ]; then
-              echo "First-time frontend bootstrap..."
               cp docker-compose.base.yml docker-compose.yml
               sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}|g" docker-compose.yml
               sed -i "s|REPLACE_FRONTEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
-              # Backend tag stays placeholder until backend workflow runs; mark as 'bootstrap'
               sed -i "s|REPLACE_BACKEND_TAG|bootstrap|g" docker-compose.yml
               docker-compose up -d db
               exit 0
             fi
 
-            # Subsequent runs: update only frontend tag in-place
             sed -i "s|${{ secrets.DOCKER_USERNAME }}/dream-frontend:[^[:space:]]*|${{ secrets.DOCKER_USERNAME }}/dream-frontend:${GITHUB_SHA}|g" docker-compose.yml
             docker-compose pull frontend
             docker-compose up -d frontend
