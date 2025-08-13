@@ -82,8 +82,15 @@ jobs:
             fi
 
             cd /home/${{ secrets.EC2_USER }}/app
+            ls -l
 
-            # First deployment
+            # Check that docker-compose.base.yml is present
+            if [ ! -f docker-compose.base.yml ]; then
+              echo "ERROR: docker-compose.base.yml not found!"
+              exit 1
+            fi
+
+            # First deployment: create docker-compose.yml
             if [ ! -f docker-compose.yml ]; then
               cp docker-compose.base.yml docker-compose.yml
               sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${DOCKER_USERNAME}|g" docker-compose.yml
