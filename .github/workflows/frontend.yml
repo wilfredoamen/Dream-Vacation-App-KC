@@ -49,6 +49,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           GITHUB_SHA: ${{ github.sha }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -58,7 +59,7 @@ jobs:
             mkdir -p /home/${{ secrets.EC2_USER }}/app/backend
             mkdir -p /home/${{ secrets.EC2_USER }}/app/frontend
 
-            # Create env files from GitHub Secrets
+            # Create env files
             cat > /home/${{ secrets.EC2_USER }}/app/backend/.env <<'EOF'
             ${{ secrets.BACKEND_ENV }}
             EOF
@@ -82,18 +83,21 @@ jobs:
 
             cd /home/${{ secrets.EC2_USER }}/app
 
+            # First deployment
             if [ ! -f docker-compose.yml ]; then
               cp docker-compose.base.yml docker-compose.yml
               sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${DOCKER_USERNAME}|g" docker-compose.yml
               sed -i "s|REPLACE_FRONTEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
               sed -i "s|REPLACE_BACKEND_TAG|bootstrap|g" docker-compose.yml
-              docker-compose up -d db
+              echo "docker-compose.yml after sed replacements:"
+              cat docker-compose.yml
+              docker-compose up -d db frontend
               exit 0
             fi
 
+            # Redeployment: update only frontend image tag
             sed -i "s|${DOCKER_USERNAME}/dream-frontend:[^[:space:]]*|${DOCKER_USERNAME}/dream-frontend:${GITHUB_SHA}|g" docker-compose.yml
+            echo "docker-compose.yml after frontend image update:"
+            cat docker-compose.yml
             docker-compose pull frontend
             docker-compose up -d frontend
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          GITHUB_SHA: ${{ github.sha }}
