@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 
 networks:
   dream-network:
@@ -11,6 +11,8 @@ services:
   db:
     image: postgres:15
     container_name: pg-db
+    env_file:
+      - ./backend/.env
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -23,13 +25,10 @@ services:
       - dream-network
 
   backend:
-    image: wilfred2018/dream-backend:${GITHUB_SHA}
+    image: DOCKER_USERNAME_PLACEHOLDER/dream-backend:REPLACE_BACKEND_TAG
     container_name: backend
-    environment:
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=db
+    env_file:
+      - ./backend/.env
     depends_on:
       - db
     ports:
@@ -38,10 +37,10 @@ services:
       - dream-network
 
   frontend:
-    image: wilfred2018/dream-frontend:${GITHUB_SHA}
+    image: DOCKER_USERNAME_PLACEHOLDER/dream-frontend:REPLACE_FRONTEND_TAG
     container_name: frontend
-    environment:
-      - REACT_APP_API_URL=http://backend:3001
+    env_file:
+      - ./frontend/.env
     depends_on:
       - backend
     ports:

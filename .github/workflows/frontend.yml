@@ -2,41 +2,98 @@ name: Frontend CI/CD
 
 on:
   push:
-    branches:
-      - ci-cd-pipeline
+    branches: [ Ec2-deploy ]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
   pull_request:
-    branches:
-      - ci-cd-pipeline
+    branches: [ Ec2-deploy ]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Docker Hub login
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - name: Build and Push Frontend Image
+      - name: Build & push frontend image (commit tag only)
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}
+
+      # Upload base compose + env files to server (idempotent)
+      - name: Upload compose + env files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: |
+            docker-compose.base.yml
+            backend/.env
+            frontend/.env
+          target: /home/${{ secrets.EC2_USER }}/app
+          strip_components: 0
+
+      - name: Bootstrap or update on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            set -e
+
+            # Ensure Docker & Compose
+            if ! command -v docker >/dev/null 2>&1; then
+              sudo apt-get update -y
+              sudo apt-get install -y docker.io
+              sudo systemctl enable docker
+              sudo usermod -aG docker $USER || true
+            fi
+            if ! command -v docker-compose >/dev/null 2>&1; then
+              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            fi
+
+            cd /home/${{ secrets.EC2_USER }}/app
+
+            # Ensure dir structure for env_file references
+            mkdir -p backend frontend
+
+            # Move env files into place (these come from your repo)
+            mv -f backend/.env backend/.env || true
+            mv -f frontend/.env frontend/.env || true
+
+            if [ ! -f docker-compose.yml ]; then
+              echo "First-time frontend bootstrap..."
+              # We can't start frontend reliably without backend (depends_on).
+              # Create compose but ask you to push backend once to complete the stack.
+              cp docker-compose.base.yml docker-compose.yml
+              sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}|g" docker-compose.yml
+              sed -i "s|REPLACE_FRONTEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
+              sed -i "s|REPLACE_BACKEND_TAG|bootstrap|g" docker-compose.yml
+              # Start only db for now; frontend will work after backend deploy runs once.
+              docker-compose up -d db
+              exit 0
+            fi
+
+            # Subsequent runs: update only frontend tag in-place
+            sed -i "s|${{ secrets.DOCKER_USERNAME }}/dream-frontend:[^[:space:]]*|${{ secrets.DOCKER_USERNAME }}/dream-frontend:${GITHUB_SHA}|g" docker-compose.yml
+            docker-compose pull frontend
+            docker-compose up -d frontend
