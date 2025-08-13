@@ -1,59 +1,42 @@
-name: Frontend CI/CD
+name: Deploy Frontend
 
 on:
   push:
-    branches: [ Ec2-deploy ]
+    branches:
+      - Ec2-deploy
     paths:
       - 'frontend/**'
-      - '.github/workflows/frontend.yml'
+      - '.github/workflows/deploy-frontend.yml'
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Docker Hub login
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & push frontend image (commit SHA + latest)
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/dream-frontend:latest
+      - name: Build & push frontend image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${GITHUB_SHA} frontend
+          docker tag ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${GITHUB_SHA} ${{ secrets.DOCKER_USERNAME }}/dream-frontend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${GITHUB_SHA}
+          docker push ${{ secrets.DOCKER_USERNAME }}/dream-frontend:latest
 
-      - name: Upload docker-compose.yml to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          source: docker-compose.yml
-          target: /home/${{ secrets.EC2_USER }}/app
-
-      - name: Deploy frontend to EC2
+      - name: Deploy frontend on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             mkdir -p /home/${{ secrets.EC2_USER }}/app/frontend
-
-            # Upload frontend .env from GitHub Secrets
-            echo "${{ secrets.FRONTEND_ENV }}" > /home/${{ secrets.EC2_USER }}/app/frontend/.env
-
+            echo "${{ secrets.FRONTEND_ENV_FILE }}" > /home/${{ secrets.EC2_USER }}/app/frontend/.env
             cd /home/${{ secrets.EC2_USER }}/app
-            docker-compose pull frontend
-            docker-compose up -d frontend
+            IMAGE_TAG=${GITHUB_SHA} docker-compose pull frontend
+            IMAGE_TAG=${GITHUB_SHA} docker-compose up -d frontend

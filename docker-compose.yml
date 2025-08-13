@@ -1,12 +1,3 @@
-version: "3.8"
-
-networks:
-  dream-network:
-    driver: bridge
-
-volumes:
-  pgdata:
-
 services:
   db:
     image: postgres:15
@@ -25,7 +16,7 @@ services:
       - dream-network
 
   backend:
-    image: ${DOCKER_USERNAME}/dream-backend:latest
+    image: ${DOCKER_USERNAME}/dream-backend:${IMAGE_TAG-backend}
     container_name: backend
     env_file:
       - ./backend/.env
@@ -37,7 +28,7 @@ services:
       - dream-network
 
   frontend:
-    image: ${DOCKER_USERNAME}/dream-frontend:latest
+    image: ${DOCKER_USERNAME}/dream-frontend:${IMAGE_TAG-frontend}
     container_name: frontend
     env_file:
       - ./frontend/.env
@@ -47,3 +38,10 @@ services:
       - "80:80"
     networks:
       - dream-network
+
+volumes:
+  pgdata:
+
+networks:
+  dream-network:
+    driver: bridge
