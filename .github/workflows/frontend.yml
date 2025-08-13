@@ -36,6 +36,15 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}
 
+      - name: Ensure target directory exists on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            mkdir -p /home/${{ secrets.EC2_USER }}/app
+
       - name: Upload docker-compose.base.yml to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -56,6 +65,18 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             set -e
+            cd /home/${{ secrets.EC2_USER }}/app
+
+            # Diagnostics: show directory contents
+            echo "Listing contents of app directory:"
+            ls -l /home/${{ secrets.EC2_USER }}/app
+
+            # Ensure base compose file is present
+            if [ ! -f docker-compose.base.yml ]; then
+              echo "ERROR: docker-compose.base.yml not found!"
+              exit 1
+            fi
+
             mkdir -p /home/${{ secrets.EC2_USER }}/app/backend
             mkdir -p /home/${{ secrets.EC2_USER }}/app/frontend
 
@@ -81,16 +102,7 @@ jobs:
               sudo chmod +x /usr/local/bin/docker-compose
             fi
 
-            cd /home/${{ secrets.EC2_USER }}/app
-            ls -l
-
-            # Check that docker-compose.base.yml is present
-            if [ ! -f docker-compose.base.yml ]; then
-              echo "ERROR: docker-compose.base.yml not found!"
-              exit 1
-            fi
-
-            # First deployment: create docker-compose.yml
+            # First deployment
             if [ ! -f docker-compose.yml ]; then
               cp docker-compose.base.yml docker-compose.yml
               sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${DOCKER_USERNAME}|g" docker-compose.yml
@@ -103,13 +115,8 @@ jobs:
             fi
 
             # Redeployment: update only frontend image tag
-            if [ -f docker-compose.yml ]; then
-              sed -i "s|${DOCKER_USERNAME}/dream-frontend:[^[:space:]]*|${DOCKER_USERNAME}/dream-frontend:${GITHUB_SHA}|g" docker-compose.yml
-              echo "docker-compose.yml after frontend image update:"
-              cat docker-compose.yml
-              docker-compose pull frontend
-              docker-compose up -d frontend
-            else
-              echo "ERROR: docker-compose.yml not found for redeployment."
-              exit 1
-            fi
+            sed -i "s|${DOCKER_USERNAME}/dream-frontend:[^[:space:]]*|${DOCKER_USERNAME}/dream-frontend:${GITHUB_SHA}|g" docker-compose.yml
+            echo "docker-compose.yml after frontend image update:"
+            cat docker-compose.yml
+            docker-compose pull frontend
+            docker-compose up -d frontend
