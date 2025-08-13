@@ -87,8 +87,8 @@ jobs:
             if [ ! -f docker-compose.yml ]; then
               cp docker-compose.base.yml docker-compose.yml
               sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${DOCKER_USERNAME}|g" docker-compose.yml
-              sed -i "s|REPLACE_FRONTEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
               sed -i "s|REPLACE_BACKEND_TAG|bootstrap|g" docker-compose.yml
+              sed -i "s|REPLACE_FRONTEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
               echo "docker-compose.yml after sed replacements:"
               cat docker-compose.yml
               docker-compose up -d db frontend
