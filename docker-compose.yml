@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 networks:
   dream-network:
@@ -25,7 +25,7 @@ services:
       - dream-network
 
   backend:
-    image: DOCKER_USERNAME_PLACEHOLDER/dream-backend:REPLACE_BACKEND_TAG
+    image: ${DOCKER_USERNAME}/dream-backend:latest
     container_name: backend
     env_file:
       - ./backend/.env
@@ -37,7 +37,7 @@ services:
       - dream-network
 
   frontend:
-    image: DOCKER_USERNAME_PLACEHOLDER/dream-frontend:REPLACE_FRONTEND_TAG
+    image: ${DOCKER_USERNAME}/dream-frontend:latest
     container_name: frontend
     env_file:
       - ./frontend/.env
