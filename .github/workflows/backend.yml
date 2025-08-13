@@ -47,6 +47,9 @@ jobs:
 
       - name: Deploy backend to EC2
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -80,15 +83,24 @@ jobs:
 
             cd /home/${{ secrets.EC2_USER }}/app
 
+            # Export GITHUB_SHA for use in this script
+            export GITHUB_SHA="${GITHUB_SHA:-${{ github.sha }}}"
+            export DOCKER_USERNAME="${DOCKER_USERNAME:-${{ secrets.DOCKER_USERNAME }}}"
+
             if [ ! -f docker-compose.yml ]; then
               cp docker-compose.base.yml docker-compose.yml
-              sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}|g" docker-compose.yml
+              sed -i "s|DOCKER_USERNAME_PLACEHOLDER|${DOCKER_USERNAME}|g" docker-compose.yml
               sed -i "s|REPLACE_BACKEND_TAG|${GITHUB_SHA}|g" docker-compose.yml
               sed -i "s|REPLACE_FRONTEND_TAG|bootstrap|g" docker-compose.yml
+              echo "docker-compose.yml after sed replacements:"
+              cat docker-compose.yml
               docker-compose up -d db backend
               exit 0
             fi
 
-            sed -i "s|${{ secrets.DOCKER_USERNAME }}/dream-backend:[^[:space:]]*|${{ secrets.DOCKER_USERNAME }}/dream-backend:${GITHUB_SHA}|g" docker-compose.yml
+            # Update backend tag for redeploy
+            sed -i "s|${DOCKER_USERNAME}/dream-backend:[^[:space:]]*|${DOCKER_USERNAME}/dream-backend:${GITHUB_SHA}|g" docker-compose.yml
+            echo "docker-compose.yml after backend image update:"
+            cat docker-compose.yml
             docker-compose pull backend
             docker-compose up -d backend
