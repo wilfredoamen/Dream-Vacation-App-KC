@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   backend:
-    image: ${DOCKER_USERNAME}/dream-backend:${IMAGE_TAG}
+    image: ${DOCKER_USERNAME}/dream-backend:${BACKEND_TAG}
     container_name: dream-backend
     env_file:
       - .env
@@ -13,7 +13,7 @@ services:
     restart: always
 
   frontend:
-    image: ${DOCKER_USERNAME}/dream-frontend:${IMAGE_TAG}
+    image: ${DOCKER_USERNAME}/dream-frontend:${FRONTEND_TAG}
     container_name: dream-frontend
     env_file:
       - .env
