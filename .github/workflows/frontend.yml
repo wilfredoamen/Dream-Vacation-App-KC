@@ -36,7 +36,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key: ${{ secrets.EC2_KEY }}
           script: |
             cd ~/app
             echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > .env
