@@ -11,9 +11,10 @@ on:
 jobs:
   deploy-backend:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set IMAGE_TAG
         run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
@@ -31,12 +32,17 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-backend:${GITHUB_SHA}
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-backend:latest
 
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.EC2_KEY }}" > key.pem
+          chmod 600 key.pem
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_KEY }} # use private key directly
+          key_path: key.pem
           script: |
             cd ~/app
             cat > .env <<EOL
