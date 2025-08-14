@@ -32,6 +32,15 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${GITHUB_SHA}
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-frontend:latest
 
+      - name: Upload docker-compose.yml to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: "docker-compose.yml"
+          target: "~/app/"
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -40,33 +49,18 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             mkdir -p ~/app
-            # If docker-compose.yml missing, upload from repo
-            if [ ! -f ~/app/docker-compose.yml ]; then
-              cat > ~/app/docker-compose.yml <<'EOF'
-              $(cat docker-compose.yml)
-              EOF
-            fi
-            # Ensure .env exists, else create it
-            if [ ! -f ~/app/.env ]; then
-              cat > ~/app/.env <<EOL
-              POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-              POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-              POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-              POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
-              REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}
-              DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-              BACKEND_TAG=latest
-              FRONTEND_TAG=latest
-              EOL
-            fi
-            # Update FRONTEND_TAG only
-            grep -v '^FRONTEND_TAG=' ~/app/.env > ~/app/.env.tmp || true
-            mv ~/app/.env.tmp ~/app/.env
-            echo "FRONTEND_TAG=${GITHUB_SHA}" >> ~/app/.env
-            # Ensure docker compose is installed
+            cat > ~/app/.env <<EOL
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
+            REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}
+            DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            IMAGE_TAG=${GITHUB_SHA}
+            EOL
             if ! docker compose version &>/dev/null; then
               sudo apt-get update
               sudo apt-get install -y docker-compose-plugin
             fi
-            docker compose pull frontend
-            docker compose up -d frontend
+            docker compose -f ~/app/docker-compose.yml pull frontend
+            docker compose -f ~/app/docker-compose.yml up -d frontend
