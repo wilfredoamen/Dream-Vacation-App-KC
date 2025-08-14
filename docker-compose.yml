@@ -1,42 +1,41 @@
-version: "3.9"
-
-networks:
-  app_network:
-    driver: bridge
+version: "3.8"
 
 services:
-  postgres:
-    image: postgres:15
-    container_name: postgres
-    env_file: .env
-    ports:
-      - "${POSTGRES_PORT}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app_network
-
   backend:
     image: ${DOCKER_USERNAME}/dream-backend:${IMAGE_TAG}
-    container_name: backend
-    env_file: .env
+    container_name: dream-backend
+    env_file:
+      - .env
     ports:
       - "3001:3001"
     depends_on:
-      - postgres
-    networks:
-      - app_network
+      - db
+    restart: always
 
   frontend:
     image: ${DOCKER_USERNAME}/dream-frontend:${IMAGE_TAG}
-    container_name: frontend
-    env_file: .env
+    container_name: dream-frontend
+    env_file:
+      - .env
     ports:
       - "80:80"
     depends_on:
       - backend
-    networks:
-      - app_network
+    restart: always
+
+  db:
+    image: postgres:14
+    container_name: dream-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
 volumes:
   postgres_data:
