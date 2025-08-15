@@ -2,37 +2,32 @@ version: "3.8"
 
 services:
   frontend:
-    image: ${FRONTEND_IMAGE}
+    image: "${DOCKER_USERNAME}/dream-vacation-app-frontend:${IMAGE_TAG}"
     ports:
       - "80:80"
-    restart: always
     depends_on:
       - backend
 
   backend:
-    image: ${BACKEND_IMAGE}
+    image: "${DOCKER_USERNAME}/dream-vacation-app-backend:${IMAGE_TAG}"
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_PORT=${POSTGRES_PORT}
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}"
     ports:
       - "3001:3001"
-    restart: always
     depends_on:
       - db
 
-  postgres:
+  db:
     image: postgres:15
+    restart: always
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: always
 
 volumes:
   postgres_data:
