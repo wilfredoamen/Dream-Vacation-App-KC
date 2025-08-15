@@ -72,13 +72,14 @@ jobs:
             echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
             echo "POSTGRES_PORT=5432" >> .env
             echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
-            
+
             # Wait for database to be ready
             until docker run --rm --network app_default postgres:15 pg_isready -h db -p 5432 -U ${{ secrets.POSTGRES_USER }}; do
             echo "Waiting for database to be ready..."
             sleep 2
             done
-
+            
+            # Pull the latest images and restart the services
             docker-compose pull
             docker-compose down
             docker-compose up -d --remove-orphans
