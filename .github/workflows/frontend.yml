@@ -7,17 +7,15 @@ on:
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
-      - 'docker-compose.yml'
   pull_request:
     branches:
       - Ec2-deploy
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
-      - 'docker-compose.yml'
 
 jobs:
-  build-and-deploy:
+  build-deploy:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,9 +24,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set IMAGE_TAG
-        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -44,21 +39,12 @@ jobs:
         with:
           context: ./frontend
           push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_USERNAME }}/dream-frontend:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}
 
-      - name: Copy docker-compose.yml to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          source: "docker-compose.yml"
-          target: "~/app"
-
-      - name: SSH into EC2 and Deploy Frontend
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE_TAG: ${{ github.sha }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -66,8 +52,16 @@ jobs:
           script: |
             cd ~/app
             touch .env
-            grep -qxF "FRONTEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-frontend:${IMAGE_TAG}" .env || \
-              sed -i "/^FRONTEND_IMAGE=/d" .env && \
-              echo "FRONTEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-frontend:${IMAGE_TAG}" >> .env
-            docker compose pull frontend
-            docker compose up -d frontend
+            # Remove only the old FRONTEND_IMAGE line and replace
+            sed -i "/^FRONTEND_IMAGE=/d" .env
+            echo "FRONTEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-frontend:${IMAGE_TAG}" >> .env
+
+            # Ensure other env vars exist
+            grep -qxF "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" .env || echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
+            grep -qxF "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" .env || echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+            grep -qxF "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" .env || echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+            grep -qxF "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" .env || echo "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" >> .env
+
+            # Pull and restart only frontend
+            docker-compose pull frontend
+            docker-compose up -d frontend
