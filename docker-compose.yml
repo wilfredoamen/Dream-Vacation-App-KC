@@ -1,41 +1,35 @@
 version: "3.8"
 
 services:
-  backend:
-    image: ${DOCKER_USERNAME}/dream-backend:${BACKEND_TAG}
-    container_name: dream-backend
-    env_file:
-      - .env
-    ports:
-      - "3001:3001"
-    depends_on:
-      - db
-    restart: always
-
   frontend:
-    image: ${DOCKER_USERNAME}/dream-frontend:${FRONTEND_TAG}
-    container_name: dream-frontend
-    env_file:
-      - .env
+    image: ${FRONTEND_IMAGE}
     ports:
       - "80:80"
     depends_on:
       - backend
     restart: always
 
+  backend:
+    image: ${BACKEND_IMAGE}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+    restart: always
+
   db:
     image: postgres:14
-    container_name: dream-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_PORT: ${POSTGRES_PORT}
-    ports:
-      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
-    restart: always
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: always
 
 volumes:
   postgres_data:
