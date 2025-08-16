@@ -1,36 +1,4 @@
 services:
-  db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - app_default
-
-  backend:
-    image: ${DOCKER_USERNAME}/dream-vacation-app-backend:${IMAGE_TAG}
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}
-    ports:
-      - "3001:3001"
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - app_default
-
   frontend:
     image: ${DOCKER_USERNAME}/dream-vacation-app-frontend:${IMAGE_TAG}
     ports:
@@ -38,11 +6,45 @@ services:
     depends_on:
       - backend
     networks:
-      - app_default
+      - app-network
+    restart: unless-stopped
+    environment:
+      - COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
+
+  backend:
+    image: ${DOCKER_USERNAME}/dream-vacation-app-backend:${IMAGE_TAG}
+    depends_on:
+      - db
+    networks:
+      - app-network
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - COUNTRIES_API_BASE_URL=${COUNTRIES_API_BASE_URL}
+
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    restart: unless-stopped
 
 networks:
-  app_default:
+  app-network:
     driver: bridge
 
 volumes:
-  postgres_data:
+  postgres-data:
+   
