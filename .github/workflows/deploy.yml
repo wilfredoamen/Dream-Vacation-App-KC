@@ -1,67 +1,90 @@
-name: Deploy to EC2
+name: Build and Deploy to EC2
+
 on:
   push:
     branches:
       - Ec2-deploy
-env:
-  IMAGE_TAG: ${{ github.sha }}
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy.yml'
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v3
-    - name: Build and push frontend image
-      run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }} ./frontend
-        docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }}
-    - name: Build and push backend image
-      run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${{ env.IMAGE_TAG }} ./backend
-        docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${{ env.IMAGE_TAG }}
-    - name: Copy files to EC2
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_KEY }}
-        source: "."
-        target: "/home/${{ secrets.EC2_USER }}/app"
-    - name: Deploy on EC2 via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_KEY }}
-        envs: IMAGE_TAG
-        script: |
-          mkdir -p /home/${{ secrets.EC2_USER }}/app
-          cd /home/${{ secrets.EC2_USER }}/app
-          echo "IMAGE_TAG=${IMAGE_TAG}" > .env
-          echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-          echo "POSTGRES_PORT=5432" >> .env
-          echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
-          sudo mkdir -p /home/${{ secrets.EC2_USER }}/app/postgres_data
-          sudo chown 999:999 /home/${{ secrets.EC2_USER }}/app/postgres_data
-          sudo chmod 700 /home/${{ secrets.EC2_USER }}/app/postgres_data
-          docker rm -f $(docker ps -a -q) || true
-          for i in {1..60}; do
-            if docker run --rm --network app_default postgres:15 pg_isready -h db -p 5432 -U ${{ secrets.POSTGRES_USER }}; then
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build Frontend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG} ./frontend
+          docker tag ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
+      - name: Build Backend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${IMAGE_TAG} ./backend
+          docker tag ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:latest
+      - name: Push Frontend Image to Docker Hub
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG}
+          docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
+      - name: Push Backend Image to Docker Hub
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${IMAGE_TAG}
+          docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:latest
+      - name: Upload docker-compose.yml to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/ubuntu/app"
+
+      - name: Deploy on EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            mkdir -p /home/${{ secrets.EC2_USER }}/app
+            cd /home/${{ secrets.EC2_USER }}/app
+            echo "IMAGE_TAG=${IMAGE_TAG}" > .env
+            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
+            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+            echo "POSTGRES_PORT=5432" >> .env
+            echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
+            sudo mkdir -p /home/${{ secrets.EC2_USER }}/app/postgres_data
+            sudo chown 999:999 /home/${{ secrets.EC2_USER }}/app/postgres_data
+            sudo chmod 700 /home/${{ secrets.EC2_USER }}/app/postgres_data
+            docker rm -f $(docker ps -a -q) || true
+            for i in {1..60}; do
+             if docker run --rm --network app_default postgres:15 pg_isready -h db -p 5432 -U ${{ secrets.POSTGRES_USER }}; then
               break
-            fi
-            echo "Waiting for database to be ready..."
-            docker ps -a
-            docker logs app-db-1 2>&1 || true
-            sleep 5
-          done
-          if [ $i -eq 60 ]; then
+             fi
+             echo "Waiting for database to be ready..."
+             docker ps -a
+             docker logs app-db-1 2>&1 || true
+             sleep 5
+            done
+            if [ $i -eq 60 ]; then
             echo "Database failed to start"
             docker logs app-db-1
             exit 1
-          fi
-          docker-compose pull || { echo "Failed to pull images"; exit 1; }
-          docker-compose down || { echo "Failed to stop containers"; exit 1; }
-          docker-compose up -d --remove-orphans || { echo "Failed to start containers"; exit 1; }
-          docker system prune -f
+            fi
+            docker-compose pull || { echo "Failed to pull images"; exit 1; }
+            docker-compose down || { echo "Failed to stop containers"; exit 1; }
+            docker-compose up -d --remove-orphans || { echo "Failed to start containers"; exit 1; }
+            docker system prune -f
