@@ -3,10 +3,6 @@ on:
   push:
     branches:
       - Ec2-deploy
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/deploy-frontend.yml'
-
 jobs:
   deploy-frontend:
     runs-on: ubuntu-latest

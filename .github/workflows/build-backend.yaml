@@ -3,11 +3,6 @@ on:
   push:
     branches:
       - Ec2-deploy
-    paths:
-      - 'backend/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/build-backend.yml'
-
 jobs:
   build:
     runs-on: ubuntu-latest
