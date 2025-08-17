@@ -1,5 +1,4 @@
 name: Build and Deploy Frontend to EC2
-
 on:
   push:
     branches:
@@ -11,27 +10,23 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    needs: backend-deploy
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-
       - name: Set IMAGE_TAG
         run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
-
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
       - name: Build Frontend Image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG} ./frontend
+          docker build --build-arg REACT_APP_API_URL=http://${{ secrets.EC2_PUBLIC_IP }}:3001 -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG} ./frontend
           docker tag ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
-
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
       - name: Push Frontend Image to Docker Hub
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG}
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
-
       - name: Upload docker-compose.yml to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -40,7 +35,6 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           source: "docker-compose.yml"
           target: "/home/ubuntu/app"
-
       - name: Deploy on EC2 via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -51,32 +45,44 @@ jobs:
           script: |
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
-            # Create environment file only if changed
-            env_content="IMAGE_TAG=${IMAGE_TAG}
-            DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-            POSTGRES_PORT=5432
-            COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1
-            REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}"
-            if [ ! -f .env ] || [ "$(cat .env)" != "$env_content" ]; then
-              echo "$env_content" > .env
-            fi
-            # Ensure Docker permissions
-            whoami
-            sudo docker ps -a
-            # Wait for backend to be healthy
+            lockfile="/home/ubuntu/app/deploy.lock"
             for i in {1..30}; do
-              if sudo docker inspect app-backend-1 | grep -q '"Status": "healthy"'; then
+              if ! test -f "$lockfile"; then
+                echo $$ > "$lockfile"
                 break
               fi
               sleep 2
             done
-            # Clean up frontend container
-            sudo docker rm -f app-frontend-1 || true
-            # Pull and deploy frontend
-            sudo docker-compose -p app pull frontend
-            sudo docker-compose -p app up -d frontend --remove-orphans
-            # Verify frontend container is running
-            sudo docker-compose -p app ps | grep "frontend.*Up" || { echo "Frontend container failed to start"; exit 1; }
+            if test -f "$lockfile" && cat "$lockfile" | grep -q $$; then
+              env_content="IMAGE_TAG=${IMAGE_TAG}
+              DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+              POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+              POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+              POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+              POSTGRES_PORT=5432
+              COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1
+              REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}"
+              if [ ! -f .env ] || [ "$(cat .env)" != "$env_content" ]; then
+                echo "$env_content" > .env
+              fi
+              whoami
+              sudo docker ps -a
+              for i in {1..30}; do
+                if sudo docker inspect app-backend-1 | grep -q '"Status": "healthy"'; then
+                  break
+                fi
+                if sudo docker ps | grep -q app-backend-1; then
+                  break
+                fi
+                sleep 2
+              done
+              sudo docker rm -f app-frontend-1 || true
+              sudo docker-compose -p app pull frontend
+              sudo docker-compose -p app up -d frontend --remove-orphans
+              sudo docker-compose -p app ps | grep "frontend.*Up" || { echo "Frontend container failed to start"; exit 1; }
+              rm -f "$lockfile"
+            else
+              echo "Another deployment is in progress, exiting"
+              exit 1
+            fi
+```
