@@ -1,51 +1,49 @@
 name: Build and Deploy Frontend to EC2
+
 on:
-  push:
-    branches:
-      - Ec2-deploy
-    paths:
-      - 'frontend/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/frontend-deploy.yml'
   workflow_run:
     workflows: ["Build and Deploy Backend to EC2"]
-    branches: [Ec2-deploy]
     types:
       - completed
+
 jobs:
   deploy:
-    runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Debug Workflow Run
-        run: |
-          echo "Workflow Run Event: ${{ toJSON(github.event.workflow_run) }}"
       - name: Checkout Code
         uses: actions/checkout@v3
-      - name: Set IMAGE_TAG
-        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Set IMAGE_TAG (from backend commit)
+        run: echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+
       - name: Cache Docker Layers
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-frontend-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-buildx-frontend-
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-buildx-
+
       - name: Cache npm Dependencies
         uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-frontend-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-npm-frontend-
+          key: ${{ runner.os }}-npm-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
+
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
       - name: Build Frontend Image
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }} ./frontend
           docker tag ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }} ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
+
       - name: Push Frontend Image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }}
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
+
       - name: Upload docker-compose.yml to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -54,7 +52,8 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           source: "docker-compose.yml"
           target: "/home/ubuntu/app"
-      - name: Deploy Frontend and Related Services on EC2
+
+      - name: Deploy Frontend on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -64,23 +63,20 @@ jobs:
           script: |
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
+
             env_content="IMAGE_TAG=${IMAGE_TAG}
             DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-            POSTGRES_PORT=5432
-            COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1
             REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}"
+
             if [ ! -f .env ] || [ "$(cat .env)" != "$env_content" ]; then
               echo "$env_content" > .env
             fi
-            whoami
+
             docker ps -a
-            docker rm -f app-frontend-1 app-backend-1 app-db-1 || true
-            docker network rm app-network || true
-            docker-compose -p app pull frontend backend db
-            docker-compose -p app up -d frontend backend db --remove-orphans
+            docker rm -f app-frontend-1 || true
+
+            docker-compose -p app pull frontend
+            docker-compose -p app up -d frontend --remove-orphans
+
             sleep 10
-            docker-compose -p app ps | grep "Up" || { echo "Frontend, Backend, or DB container failed to start"; exit 1; }
-            docker inspect app-backend-1 | grep -q '"Running": true' || { echo "Backend container is not running"; docker logs app-backend-1; exit 1; }
+            docker-compose -p app ps | grep "frontend" | grep "Up" || { echo "Frontend container failed to start"; exit 1; }
