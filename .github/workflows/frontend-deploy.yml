@@ -85,4 +85,3 @@ jobs:
               echo "Another deployment is in progress, exiting"
               exit 1
             fi
-```
