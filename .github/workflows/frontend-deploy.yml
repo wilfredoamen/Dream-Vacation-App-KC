@@ -1,11 +1,8 @@
 name: Build and Deploy Frontend to EC2
 
+
 on:
-  workflow_run:
-    workflows: ["Build and Deploy Backend to EC2"]   # exact name of backend workflow
-    types:
-      - completed
-  workflow_dispatch:   # allow manual trigger anytime
+    workflow_dispatch:
 
 jobs:
   deploy:
