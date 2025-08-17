@@ -1,5 +1,4 @@
 name: Build and Deploy Backend to EC2
-
 on:
   push:
     branches:
