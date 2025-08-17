@@ -1,6 +1,5 @@
 name: Build and Deploy Frontend to EC2
 
-
 on:
   push:
     branches: [ Ec2-deploy ]
@@ -8,22 +7,18 @@ on:
       - "frontend/**"
       - "docker-compose.yml"
       - ".github/workflows/frontend-deploy.yml"
+  workflow_dispatch:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set IMAGE_TAG (reuse backend commit SHA)
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
-          else
-            echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
-          fi
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Cache Docker Layers
         uses: actions/cache@v3
