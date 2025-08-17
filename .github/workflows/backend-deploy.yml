@@ -60,8 +60,11 @@ jobs:
             echo "POSTGRES_PORT=5432" >> .env
             echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
             echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
-            docker-compose pull
-            # Explicitly remove the conflicting container if it exists
+            # Check if frontend image exists, fallback to latest if not
+            docker pull ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG} || docker pull ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
+            docker-compose pull backend db
             docker rm -f app-db-1 || true
             docker-compose down
             docker-compose up -d --remove-orphans
+            # Verify containers are running
+            docker-compose ps | grep "Up" || { echo "Containers failed to start"; exit 1; }
