@@ -1,4 +1,5 @@
 name: Build and Deploy Backend to EC2
+
 on:
   push:
     branches:
@@ -50,20 +51,26 @@ jobs:
           script: |
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
-            # Create environment file from GitHub Secrets
-            echo "IMAGE_TAG=${IMAGE_TAG}" > .env
-            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-            echo "POSTGRES_PORT=5432" >> .env
-            echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
-            echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
-            # Check if frontend image exists, fallback to latest if not
-            docker pull ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${IMAGE_TAG} || docker pull ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
-            docker-compose pull backend db
-            docker rm -f app-db-1 || true
-            docker-compose down
-            docker-compose up -d --remove-orphans
+            # Create environment file only if changed
+            env_content="IMAGE_TAG=${IMAGE_TAG}
+            DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_PORT=5432
+            COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1
+            REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}"
+            if [ ! -f .env ] || [ "$(cat .env)" != "$env_content" ]; then
+              echo "$env_content" > .env
+            fi
+            # Ensure Docker permissions
+            whoami
+            sudo docker ps -a
+            # Clean up backend and db containers and network
+            sudo docker rm -f app-backend-1 app-db-1 || true
+            sudo docker network rm app-network || true
+            # Pull and deploy backend and db
+            sudo docker-compose -p app pull backend db
+            sudo docker-compose -p app up -d backend db --remove-orphans
             # Verify containers are running
-            docker-compose ps | grep "Up" || { echo "Containers failed to start"; exit 1; }
+            sudo docker-compose -p app ps | grep "Up" || { echo "Backend or DB container failed to start"; exit 1; }

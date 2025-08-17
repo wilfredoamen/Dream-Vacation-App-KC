@@ -1,4 +1,5 @@
 name: Build and Deploy Frontend to EC2
+
 on:
   push:
     branches:
@@ -11,6 +12,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    needs: backend-deploy
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -50,15 +52,32 @@ jobs:
           script: |
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
-            # Create environment file from GitHub Secrets
-            echo "IMAGE_TAG=${IMAGE_TAG}" > .env
-            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-            echo "POSTGRES_PORT=5432" >> .env
-            echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
-            echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
-            docker-compose pull
-            docker-compose down
-            docker-compose up -d --remove-orphans
+            # Create environment file only if changed
+            env_content="IMAGE_TAG=${IMAGE_TAG}
+            DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_PORT=5432
+            COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1
+            REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}"
+            if [ ! -f .env ] || [ "$(cat .env)" != "$env_content" ]; then
+              echo "$env_content" > .env
+            fi
+            # Ensure Docker permissions
+            whoami
+            sudo docker ps -a
+            # Wait for backend to be healthy
+            for i in {1..30}; do
+              if sudo docker inspect app-backend-1 | grep -q '"Status": "healthy"'; then
+                break
+              fi
+              sleep 2
+            done
+            # Clean up frontend container
+            sudo docker rm -f app-frontend-1 || true
+            # Pull and deploy frontend
+            sudo docker-compose -p app pull frontend
+            sudo docker-compose -p app up -d frontend --remove-orphans
+            # Verify frontend container is running
+            sudo docker-compose -p app ps | grep "frontend.*Up" || { echo "Frontend container failed to start"; exit 1; }

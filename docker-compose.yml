@@ -4,7 +4,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
@@ -26,6 +27,11 @@ services:
       - POSTGRES_HOST=db
       - POSTGRES_PORT=${POSTGRES_PORT}
       - COUNTRIES_API_BASE_URL=${COUNTRIES_API_BASE_URL}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://44.222.207.117:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   db:
     image: postgres:16
@@ -47,4 +53,3 @@ networks:
 
 volumes:
   postgres-data:
-   
