@@ -21,6 +21,12 @@ jobs:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: ${{ runner.os }}-buildx-
+      - name: Cache npm Dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('backend/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
       - name: Build Backend Image
@@ -29,8 +35,10 @@ jobs:
           docker tag ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:latest
       - name: Scan Backend Image
         uses: aquasecurity/trivy-action@master
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         with:
-          image-ref: ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${IMAGE_TAG}
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${{ env.IMAGE_TAG }}
           format: 'table'
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
