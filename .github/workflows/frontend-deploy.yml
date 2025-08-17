@@ -1,5 +1,12 @@
 name: Build and Deploy Frontend to EC2
 on:
+  push:
+    branches:
+      - Ec2-deploy
+    paths:
+      - 'frontend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/frontend-deploy.yml'
   workflow_run:
     workflows: ["Build and Deploy Backend to EC2"]
     branches: [Ec2-deploy]
