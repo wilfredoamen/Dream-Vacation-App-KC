@@ -15,7 +15,7 @@ jobs:
     if: contains(github.event.head_commit.modified, 'backend/') || contains(github.event.head_commit.modified, 'docker-compose.yml')
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4  # Update to latest version
+        uses: actions/checkout@v4
 
       - name: Set IMAGE_TAG
         run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
@@ -43,7 +43,7 @@ jobs:
           target: "/home/ubuntu/app/"
 
       - name: Deploy Backend to EC2
-        uses: appleboy/ssh-action@v1.0.3  # Update to latest version
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -59,7 +59,7 @@ jobs:
             echo "REACT_APP_API_URL=${REACT_APP_API_URL}" >> .env
             
             docker compose -p app up -d backend db --remove-orphans
-            until curl -s http://localhost:8080/health; do sleep 2; done  # Add health check
+            until curl -s http://localhost:3001/health; do sleep 2; done
             docker compose -p app ps
 
   deploy-frontend:
