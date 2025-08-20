@@ -1,18 +1,37 @@
 name: Build and Deploy Full Stack to EC2
+
 on:
   push:
     branches:
       - Ec2-deploy
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/deploy.yml'
   workflow_dispatch:
+
 jobs:
-  deploy-backend:
+  detect-changes:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, 'backend/') || contains(github.event.head_commit.modified, 'docker-compose.yml')
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect file changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'docker-compose.yml'
+            frontend:
+              - 'frontend/**'
+              - 'docker-compose.yml'
+
+  deploy-backend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -57,15 +76,15 @@ jobs:
             echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
             echo "POSTGRES_DB=${POSTGRES_DB}" >> .env
             echo "REACT_APP_API_URL=${REACT_APP_API_URL}" >> .env
-            
+
             docker compose -p app up -d backend db --remove-orphans
             until curl -s http://localhost:3001/health; do sleep 2; done
             docker compose -p app ps
 
   deploy-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
-    needs: deploy-backend
-    if: contains(github.event.head_commit.modified, 'frontend/') || contains(github.event.head_commit.modified, 'docker-compose.yml')
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -107,6 +126,6 @@ jobs:
             echo "IMAGE_TAG=${IMAGE_TAG}" > .env
             echo "DOCKER_USERNAME=${DOCKER_USERNAME}" >> .env
             echo "REACT_APP_API_URL=${REACT_APP_API_URL}" >> .env
-            
+
             docker compose -p app up -d frontend --remove-orphans
             docker compose -p app ps
