@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - Ec2-deploy
- 
 jobs:
   changes:
     name: Detect Changes
@@ -74,8 +73,7 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           source: "docker-compose.yml"
           target: "/home/ubuntu/app/"
-          # Added to handle empty source gracefully
-          fail_on_empty: false  # Optional: Prevents failure if file is missing, but deployment will still fail later
+          # Removed fail_on_empty since it's not supported in v0.1.7
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -87,9 +85,9 @@ jobs:
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
             
-            # Create or overwrite .env file with dynamic image tags from build steps
-            echo "BACKEND_IMAGE=${{ needs.build-backend.outputs.BACKEND_IMAGE || secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}" > .env
-            echo "FRONTEND_IMAGE=${{ needs.build-frontend.outputs.FRONTEND_IMAGE || secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}" >> .env
+            # Create or overwrite .env file with dynamic image tags
+            echo "BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}" > .env
+            echo "FRONTEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}" >> .env
             echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
             echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
             echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
@@ -100,7 +98,7 @@ jobs:
             
             # Check if docker-compose.yml exists
             if [ ! -f docker-compose.yml ]; then
-              echo "Error: docker-compose.yml not found on EC2"
+              echo "Error: docker-compose.yml not found on EC2 after copy"
               exit 1
             fi
             
@@ -113,6 +111,6 @@ jobs:
               docker-compose -p app up -d
             fi
             
-            # Add basic health check (adjust port and endpoint as needed)
-            sleep 5  # Temporary delay
+            # Temporary delay (replace with health check later)
+            sleep 10
             docker ps -a
