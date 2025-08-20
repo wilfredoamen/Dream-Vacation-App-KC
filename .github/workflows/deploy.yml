@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - Ec2-deploy
-
 jobs:
   changes:
     name: Detect Changes
