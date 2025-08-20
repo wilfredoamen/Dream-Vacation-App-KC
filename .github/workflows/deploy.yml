@@ -84,44 +84,36 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           envs: BACKEND_IMAGE, FRONTEND_IMAGE, DOCKER_USERNAME, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT, REACT_APP_API_URL
           script: |
-            mkdir -p /home/ubuntu/app
-            cd /home/ubuntu/app
-            
-            # Create or overwrite .env file with dynamic image tags
-            echo "BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}" > .env
-            echo "FRONTEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}" >> .env
-            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-            echo "POSTGRES_PORT=5432" >> .env
-            echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
-            echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
-            
-            # Debug env
-             echo "====== .env contents ======"
-             cat .env
-
-            # DockerHub login
-            echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-            # Check if docker-compose.yml exists
-            if [ ! -f docker-compose.yml ]; then
-              echo "Error: docker-compose.yml not found on EC2 after copy"
-              exit 1
-            fi
-            
-            # Use docker compose (v2) or fallback to docker-compose (v1)
-            if command -v docker compose >/dev/null 2>&1; then
-              docker compose -p app config
-              docker compose -p app pull
-              docker compose -p app up -d
-            else
-              docker compose -p app config
-              docker-compose -p app pull
-              docker-compose -p app up -d
-            fi
-            
-            # Temporary delay (replace with health check later)
-            sleep 10
-            docker ps -a
+              set -e  # Exit on error
+              mkdir -p /home/ubuntu/app
+              cd /home/ubuntu/app
+              echo "Creating .env file"
+              echo "BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}" > .env
+              echo "FRONTEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}" >> .env
+              echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
+              echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
+              echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+              echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+              echo "POSTGRES_PORT=5432" >> .env
+              echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
+              echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
+              echo "Checking docker-compose.yml"
+              if [ ! -f docker-compose.yml ]; then
+                echo "Error: docker-compose.yml not found"
+                exit 1
+              fi
+              echo "Logging into DockerHub"
+              docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }}
+              echo "Running docker compose"
+              if command -v docker compose >/dev/null 2>&1; then
+                docker compose -p app pull || { echo "Pull failed"; exit 1; }
+                docker compose -p app up -d || { echo "Up failed"; exit 1; }
+              else
+                docker-compose -p app pull || { echo "Pull failed"; exit 1; }
+                docker-compose -p app up -d || { echo "Up failed"; exit 1; }
+              fi
+              echo "Checking running containers"
+              docker ps -a
+              echo "Checking images"
+              docker images
+              echo "Deployment completed successfully"
