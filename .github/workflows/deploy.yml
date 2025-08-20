@@ -94,5 +94,5 @@ jobs:
             echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
             echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
 
-            docker compose pull
-            docker compose up -d
+            docker-compose pull
+            docker-compose up -d
