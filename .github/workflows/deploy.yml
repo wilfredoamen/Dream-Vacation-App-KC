@@ -15,52 +15,43 @@ jobs:
     if: contains(github.event.head_commit.modified, 'backend/') || contains(github.event.head_commit.modified, 'docker-compose.yml')
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4  # Update to latest version
-
+        uses: actions/checkout@v3
+      
       - name: Set IMAGE_TAG
         run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
-
+      
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
+      
       - name: Build Backend Image
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${{ env.IMAGE_TAG }} ./backend
           docker tag ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${{ env.IMAGE_TAG }} ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:latest
-
+      
       - name: Push Backend Image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:${{ env.IMAGE_TAG }}
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-backend:latest
-
-      - name: Copy docker-compose.yml to EC2
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          source: "docker-compose.yml"
-          target: "/home/ubuntu/app/"
-
+      
       - name: Deploy Backend to EC2
-        uses: appleboy/ssh-action@v1.0.3  # Update to latest version
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
-          envs: IMAGE_TAG, DOCKER_USERNAME, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, REACT_APP_API_URL
+          envs: IMAGE_TAG
           script: |
             cd /home/ubuntu/app
-            echo "IMAGE_TAG=${IMAGE_TAG}" > .env
-            echo "DOCKER_USERNAME=${DOCKER_USERNAME}" >> .env
-            echo "POSTGRES_USER=${POSTGRES_USER}" >> .env
-            echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
-            echo "POSTGRES_DB=${POSTGRES_DB}" >> .env
-            echo "REACT_APP_API_URL=${REACT_APP_API_URL}" >> .env
+            echo "IMAGE_TAG=${IMAGE_TAG}" > .env.backend
+            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env.backend
+            echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env.backend
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env.backend
+            echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env.backend
+            echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env.backend
             
-            docker compose -p app up -d backend db --remove-orphans
-            until curl -s http://localhost:8080/health; do sleep 2; done  # Add health check
-            docker compose -p app ps
+            docker-compose -p app up -d backend db --remove-orphans
+            sleep 10
+            docker-compose -p app ps
 
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -68,45 +59,37 @@ jobs:
     if: contains(github.event.head_commit.modified, 'frontend/') || contains(github.event.head_commit.modified, 'docker-compose.yml')
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v3
+      
       - name: Set IMAGE_TAG
         run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
-
+      
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
+      
       - name: Build Frontend Image
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }} ./frontend
           docker tag ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }} ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
-
+      
       - name: Push Frontend Image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:${{ env.IMAGE_TAG }}
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-vacation-app-frontend:latest
-
-      - name: Copy docker-compose.yml to EC2
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          source: "docker-compose.yml"
-          target: "/home/ubuntu/app/"
-
+      
       - name: Deploy Frontend to EC2
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
-          envs: IMAGE_TAG, DOCKER_USERNAME, REACT_APP_API_URL
+          envs: IMAGE_TAG
           script: |
             cd /home/ubuntu/app
-            echo "IMAGE_TAG=${IMAGE_TAG}" > .env
-            echo "DOCKER_USERNAME=${DOCKER_USERNAME}" >> .env
-            echo "REACT_APP_API_URL=${REACT_APP_API_URL}" >> .env
+            echo "IMAGE_TAG=${IMAGE_TAG}" > .env.frontend
+            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env.frontend
+            echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env.frontend
             
-            docker compose -p app up -d frontend --remove-orphans
-            docker compose -p app ps
+            docker-compose -p app up -d frontend --remove-orphans
+            sleep 5
+            docker-compose -p app ps
