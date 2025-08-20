@@ -1,6 +1,6 @@
 services:
   frontend:
-    image: ${DOCKER_USERNAME}/dream-vacation-app-frontend:${IMAGE_TAG}
+    image: ${FRONTEND_IMAGE}
     ports:
       - "80:80"
     environment:
@@ -11,7 +11,7 @@ services:
     networks:
       - app-network
   backend:
-    image: ${DOCKER_USERNAME}/dream-vacation-app-backend:${IMAGE_TAG}
+    image: ${BACKEND_IMAGE}
     environment:
       - POSTGRES_HOST=db
       - POSTGRES_USER=${POSTGRES_USER}
