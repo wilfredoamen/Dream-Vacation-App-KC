@@ -1,9 +1,9 @@
 name: Build and Deploy App
-
 on:
   push:
     branches:
       - Ec2-deploy
+ 
 jobs:
   changes:
     name: Detect Changes
@@ -23,7 +23,6 @@ jobs:
             frontend:
               - 'frontend/**'
               - 'docker-compose.yml'
-
   build-backend:
     name: Build & Push Backend
     runs-on: ubuntu-latest
@@ -43,7 +42,6 @@ jobs:
           docker push $IMAGE
           docker tag $IMAGE ${{ secrets.DOCKER_USERNAME }}/dream-backend:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-backend:latest
-
   build-frontend:
     name: Build & Push Frontend
     runs-on: ubuntu-latest
@@ -63,7 +61,6 @@ jobs:
           docker push $IMAGE
           docker tag $IMAGE ${{ secrets.DOCKER_USERNAME }}/dream-frontend:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/dream-frontend:latest
-
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
@@ -72,36 +69,50 @@ jobs:
       - name: Copy docker-compose.yml to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-         host: ${{ secrets.EC2_HOST }}
-         username: ${{ secrets.EC2_USER }}
-         key: ${{ secrets.EC2_KEY }}
-         source: "docker-compose.yml"
-         target: "/home/ubuntu/app/"
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/ubuntu/app/"
+          # Added to handle empty source gracefully
+          fail_on_empty: false  # Optional: Prevents failure if file is missing, but deployment will still fail later
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
+          envs: BACKEND_IMAGE, FRONTEND_IMAGE, DOCKER_USERNAME, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT, REACT_APP_API_URL
           script: |
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
             
-
-            # Create or overwrite .env file
-            echo "BACKEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}" > .env
-            echo "FRONTEND_IMAGE=${{ secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}" >> .env
+            # Create or overwrite .env file with dynamic image tags from build steps
+            echo "BACKEND_IMAGE=${{ needs.build-backend.outputs.BACKEND_IMAGE || secrets.DOCKER_USERNAME }}/dream-backend:${{ github.sha }}" > .env
+            echo "FRONTEND_IMAGE=${{ needs.build-frontend.outputs.FRONTEND_IMAGE || secrets.DOCKER_USERNAME }}/dream-frontend:${{ github.sha }}" >> .env
             echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-
-            # Postgres vars
             echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
             echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
             echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
             echo "POSTGRES_PORT=5432" >> .env
-
-            # API URLs
             echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
             echo "COUNTRIES_API_BASE_URL=https://restcountries.com/v3.1" >> .env
-
-            docker-compose pull
-            docker-compose up -d
+            
+            # Check if docker-compose.yml exists
+            if [ ! -f docker-compose.yml ]; then
+              echo "Error: docker-compose.yml not found on EC2"
+              exit 1
+            fi
+            
+            # Use docker compose (v2) or fallback to docker-compose (v1)
+            if command -v docker compose >/dev/null 2>&1; then
+              docker compose -p app pull
+              docker compose -p app up -d
+            else
+              docker-compose -p app pull
+              docker-compose -p app up -d
+            fi
+            
+            # Add basic health check (adjust port and endpoint as needed)
+            sleep 5  # Temporary delay
+            docker ps -a
