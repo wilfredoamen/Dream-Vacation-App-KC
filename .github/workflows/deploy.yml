@@ -138,3 +138,11 @@ jobs:
               sleep 2
             done
             docker ps -a
+            echo "Container status"
+            docker ps -a
+            echo "Database logs"
+            docker logs app-db-1
+            echo "Backend logs"
+            docker logs app-backend-1
+            echo "Frontend logs"
+            docker logs app-frontend-1
