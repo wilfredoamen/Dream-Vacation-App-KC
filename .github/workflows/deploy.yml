@@ -142,6 +142,9 @@ jobs:
               echo "Error: docker-compose.yml not found"
               exit 1
             fi
+            echo "Adding ubuntu user to docker group"
+            sudo usermod -aG docker ubuntu
+            newgrp docker
             echo "Logging into DockerHub"
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }}
             echo "Running docker-compose"
