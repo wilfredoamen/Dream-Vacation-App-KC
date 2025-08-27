@@ -145,8 +145,8 @@ jobs:
             echo "Logging into DockerHub"
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }}
             echo "Running docker-compose"
-            docker-compose -p app pull || { echo "Pull failed"; exit 1; }
-            docker-compose -p app up -d || { echo "Up failed"; exit 1; }
+            docker compose -p app pull || { echo "Pull failed"; exit 1; }
+            docker compose -p app up -d || { echo "Up failed"; exit 1; }
             echo "Checking running containers"
             docker ps -a
             echo "Checking images"
