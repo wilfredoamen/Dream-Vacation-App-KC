@@ -1,18 +1,4 @@
 services:
-  backend:
-    image: ${BACKEND_IMAGE}
-    env_file: .env
-    ports:
-      - "3001:3001"
-    depends_on:
-      - db
-  frontend:
-    image: ${FRONTEND_IMAGE}
-    env_file: .env
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
   db:
     image: postgres:15
     environment:
@@ -23,5 +9,25 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  backend:
+    image: ${BACKEND_IMAGE}
+    env_file: .env
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    env_file: .env
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
 volumes:
   postgres_data:
