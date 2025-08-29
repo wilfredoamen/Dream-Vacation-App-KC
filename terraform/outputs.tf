@@ -23,6 +23,7 @@ output "ssh_command" {
   description = "SSH command to connect to the EC2 instance"
 }
 
+
 output "vpc_id" {
   value       = aws_vpc.dream_vpc.id
   description = "The ID of the VPC"

@@ -11,6 +11,7 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical (official Ubuntu owner).
 }
 
+
 resource "aws_vpc" "dream_vpc" {
   cidr_block = var.vpc_cidr
   tags = {

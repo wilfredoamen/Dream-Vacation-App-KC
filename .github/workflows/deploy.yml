@@ -1,5 +1,6 @@
 name: Build and Deploy App
 on:
+  workflow_dispatch:
   push:
     branches:
       - Ec2-deploy
