@@ -1,4 +1,4 @@
-# Dream Vacation App: From Local Setup to Dockerized Deployment and Automated CI/CD with GitHub Actions + Ec2 Deployment
+# Dream Vacation App: From Local Setup to Dockerized Deployment and Automated CI/CD with Terraform + GitHub Actions + Ec2 Deployment
 
 ## Task 1 : Dream Vacation App – Dockerized Full-Stack Project.
 
